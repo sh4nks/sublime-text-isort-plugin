@@ -10,8 +10,18 @@ sys.path.append(os.path.dirname(__file__))
 
 
 class IsortCommand(sublime_plugin.TextCommand):
+
     def get_region(self):
-        return sublime.Region(0, self.view.size())
+        selection = self.view.sel()[0]
+        if selection.empty():
+            return sublime.Region(0, self.view.size())
+
+        begin_line, begin_column = self.view.rowcol(selection.begin())
+        end_line, end_column = self.view.rowcol(selection.end())
+        return sublime.Region(
+            self.view.text_point(begin_line, 0),
+            self.view.text_point(end_line, 0)
+        )
 
     def get_buffer_contents(self):
         return self.view.substr(self.get_region())
