@@ -46,7 +46,7 @@ common = ['native_dict', 'native_round', 'native_filter', 'native_map', 'native_
 if PY3:
     import urllib
     import builtins
-    from urllib import parse
+    from urllib.parse import quote, quote_plus, unquote, unquote_plus, urlencode
 
     from collections import OrderedDict
 
@@ -64,11 +64,12 @@ if PY3:
     def keysview(collection):
         return collection.keys()
 
-    urllib.quote = parse.quote
-    urllib.quote_plus = parse.quote_plus
-    urllib.unquote = parse.unquote
-    urllib.unquote_plus = parse.unquote_plus
-    urllib.urlencode = parse.urlencode
+    # This is seriously fucked up
+    urllib.quote = quote
+    urllib.quote_plus = quote_plus
+    urllib.unquote = unquote
+    urllib.unquote_plus = unquote_plus
+    urllib.urlencode = urlencode
     execute = getattr(builtins, 'exec')
     if VERSION[1] < 2:
         def callable(entity):
