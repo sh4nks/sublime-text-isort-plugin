@@ -143,7 +143,6 @@ def _update_with_config_file(file_path, sections, computed_settings):
             computed_settings['line_length'] = int(max_line_length)
 
     for key, value in itemsview(settings):
-        print(key, value)
         access_key = key.replace('not_', '').lower()
         existing_value_type = type(default.get(access_key, ''))
         if existing_value_type in (list, tuple):
