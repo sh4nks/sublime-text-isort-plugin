@@ -25,6 +25,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import os
+import sublime
 from collections import namedtuple
 
 from pies.functools import lru_cache
@@ -97,6 +98,9 @@ def from_path(path):
     computed_settings = default.copy()
     _update_settings_with_config(path, '.editorconfig', '~/.editorconfig', ('*', '*.py', '**.py'), computed_settings)
     _update_settings_with_config(path, '.isort.cfg', '~/.isort.cfg', ('settings', 'isort'), computed_settings)
+    _update_settings_with_config(
+        os.path.dirname(sublime.windows()[0].active_view().file_name()), '.isort.cfg', '~/.isort.cfg',
+        ('settings', 'isort'), computed_settings)
     _update_settings_with_config(path, 'setup.cfg', None, ('isort', ), computed_settings)
     return computed_settings
 
