@@ -1,12 +1,47 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, division, unicode_literals, absolute_import
+from __future__ import absolute_import, division, print_function, unicode_literals
 
-from .natsort import natsort_key, natsorted, index_natsorted
-from ._version import __version__
+import sys
+
+from natsort.natsort import (
+    as_ascii,
+    as_utf8,
+    decoder,
+    humansorted,
+    index_humansorted,
+    index_natsorted,
+    index_realsorted,
+    natsort_key,
+    natsort_keygen,
+    natsorted,
+    ns,
+    order_by_index,
+    realsorted,
+)
+from natsort.utils import chain_functions
+
+if float(sys.version[:3]) < 3:
+    from natsort.natsort import natcmp
+
+__version__ = "6.0.0"
 
 __all__ = [
-           'natsort_key',
-           'natsorted',
-           'index_natsorted',
-          ]
+    "natsort_key",
+    "natsort_keygen",
+    "natsorted",
+    "humansorted",
+    "realsorted",
+    "index_natsorted",
+    "index_humansorted",
+    "index_realsorted",
+    "order_by_index",
+    "decoder",
+    "natcmp",
+    "as_ascii",
+    "as_utf8",
+    "ns",
+    "chain_functions",
+]
 
+# Add the ns keys to this namespace for convenience.
+globals().update(ns._asdict())

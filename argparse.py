@@ -1,4 +1,5 @@
 # Author: Steven J. Bethard <steven.bethard@gmail.com>.
+# Maintainer: Thomas Waldmann <tw@waldmann-edv.de>
 
 """Command-line parsing library
 
@@ -61,7 +62,12 @@ considered public as object names -- the API of the formatter objects is
 still considered an implementation detail.)
 """
 
-__version__ = '1.2.1'
+__version__ = '1.4.0'  # we use our own version number independant of the
+                       # one in stdlib and we release this on pypi.
+
+__external_lib__ = True  # to make sure the tests really test THIS lib,
+                         # not the builtin one in Python stdlib
+
 __all__ = [
     'ArgumentParser',
     'ArgumentError',
@@ -1045,9 +1051,13 @@ class _SubParsersAction(Action):
 
     class _ChoicesPseudoAction(Action):
 
-        def __init__(self, name, help):
+        def __init__(self, name, aliases, help):
+            metavar = dest = name
+            if aliases:
+                metavar += ' (%s)' % ', '.join(aliases)
             sup = super(_SubParsersAction._ChoicesPseudoAction, self)
-            sup.__init__(option_strings=[], dest=name, help=help)
+            sup.__init__(option_strings=[], dest=dest, help=help,
+                        metavar=metavar)
 
     def __init__(self,
                  option_strings,
@@ -1075,15 +1085,22 @@ class _SubParsersAction(Action):
         if kwargs.get('prog') is None:
             kwargs['prog'] = '%s %s' % (self._prog_prefix, name)
 
+        aliases = kwargs.pop('aliases', ())
+
         # create a pseudo-action to hold the choice help
         if 'help' in kwargs:
             help = kwargs.pop('help')
-            choice_action = self._ChoicesPseudoAction(name, help)
+            choice_action = self._ChoicesPseudoAction(name, aliases, help)
             self._choices_actions.append(choice_action)
 
         # create the parser and add it to the map
         parser = self._parser_class(**kwargs)
         self._name_parser_map[name] = parser
+
+        # make parser available under aliases also
+        for alias in aliases:
+            self._name_parser_map[alias] = parser
+
         return parser
 
     def _get_subactions(self):
@@ -1146,11 +1163,16 @@ class FileType(object):
                 msg = _('argument "-" with mode %r' % self._mode)
                 raise ValueError(msg)
 
-        # all other arguments are used as file names
-        if self._bufsize:
-            return open(string, self._mode, self._bufsize)
-        else:
-            return open(string, self._mode)
+        try:
+            # all other arguments are used as file names
+            if self._bufsize:
+                return open(string, self._mode, self._bufsize)
+            else:
+                return open(string, self._mode)
+        except IOError:
+            err = _sys.exc_info()[1]
+            message = _("can't open '%s': %s")
+            raise ArgumentTypeError(message % (string, err))
 
     def __repr__(self):
         args = [self._mode, self._bufsize]
@@ -1720,10 +1742,7 @@ class ArgumentParser(_AttributeHolder, _ActionsContainer):
             if action.dest is not SUPPRESS:
                 if not hasattr(namespace, action.dest):
                     if action.default is not SUPPRESS:
-                        default = action.default
-                        if isinstance(action.default, basestring):
-                            default = self._get_value(action, default)
-                        setattr(namespace, action.dest, default)
+                        setattr(namespace, action.dest, action.default)
 
         # add any parser defaults that aren't present
         for dest in self._defaults:
@@ -1951,12 +1970,23 @@ class ArgumentParser(_AttributeHolder, _ActionsContainer):
         if positionals:
             self.error(_('too few arguments'))
 
-        # make sure all required actions were present
+        # make sure all required actions were present, and convert defaults.
         for action in self._actions:
-            if action.required:
-                if action not in seen_actions:
+            if action not in seen_actions:
+                if action.required:
                     name = _get_action_name(action)
                     self.error(_('argument %s is required') % name)
+                else:
+                    # Convert action default now instead of doing it before
+                    # parsing arguments to avoid calling convert functions
+                    # twice (which may fail) if the argument was given, but
+                    # only if it was defined already in the namespace
+                    if (action.default is not None and
+                            isinstance(action.default, basestring) and
+                            hasattr(namespace, action.dest) and
+                            action.default is getattr(namespace, action.dest)):
+                        setattr(namespace, action.dest,
+                                self._get_value(action, action.default))
 
         # make sure all required groups had one option present
         for group in self._mutually_exclusive_groups:

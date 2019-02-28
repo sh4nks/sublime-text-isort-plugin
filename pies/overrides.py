@@ -1,27 +1,29 @@
-"""
-    pies/overrides.py
+"""pies/overrides.py.
 
-    Overrides Python syntax to conform to the Python3 version as much as possible using a '*' import
+Overrides Python syntax to conform to the Python3 version as much as possible using a '*' import
 
-    Copyright (C) 2013  Timothy Edmund Crosley
+Copyright (C) 2013  Timothy Edmund Crosley
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-    documentation files (the "Software"), to deal in the Software without restriction, including without limitation
-    the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
-    to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-    The above copyright notice and this permission notice shall be included in all copies or
-    substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all copies or
+substantial portions of the Software.
 
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-    TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
-    CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-    OTHER DEALINGS IN THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
 """
 from __future__ import absolute_import
 
+import abc
 import functools
+import sys
 from numbers import Integral
 
 from ._utils import unmodified_isinstance, with_metaclass
@@ -46,7 +48,7 @@ common = ['native_dict', 'native_round', 'native_filter', 'native_map', 'native_
 if PY3:
     import urllib
     import builtins
-    from urllib.parse import quote, quote_plus, unquote, unquote_plus, urlencode
+    from urllib import parse
 
     from collections import OrderedDict
 
@@ -64,12 +66,11 @@ if PY3:
     def keysview(collection):
         return collection.keys()
 
-    # This is seriously fucked up
-    urllib.quote = quote
-    urllib.quote_plus = quote_plus
-    urllib.unquote = unquote
-    urllib.unquote_plus = unquote_plus
-    urllib.urlencode = urlencode
+    urllib.quote = parse.quote
+    urllib.quote_plus = parse.quote_plus
+    urllib.unquote = parse.unquote
+    urllib.unquote_plus = parse.unquote_plus
+    urllib.urlencode = parse.urlencode
     execute = getattr(builtins, 'exec')
     if VERSION[1] < 2:
         def callable(entity):
@@ -96,6 +97,14 @@ else:
     range = xrange
     integer_types = (int, long)
 
+    import sys
+    stdout = sys.stdout
+    stderr = sys.stderr
+    reload(sys)
+    sys.stdout = stdout
+    sys.stderr = stderr
+    sys.setdefaultencoding('utf-8')
+
     def _create_not_allowed(name):
         def _not_allow(*args, **kwargs):
             raise NameError("name '{0}' is not defined".format(name))
@@ -105,8 +114,11 @@ else:
     for removed in ('apply', 'cmp', 'coerce', 'execfile', 'raw_input', 'unpacks'):
         globals()[removed] = _create_not_allowed(removed)
 
-    def u(string):
-        return codecs.unicode_escape_decode(string[0])
+    def u(s):
+        if isinstance(s, unicode):
+            return s
+        else:
+            return unicode(s.replace(r'\\', r'\\\\'), "unicode_escape")
 
     def execute(_code_, _globs_=None, _locs_=None):
         """Execute code in a namespace."""
@@ -206,10 +218,28 @@ else:
             dct['__str__'] = lambda self: self.__unicode__().encode('utf-8')
             return type.__new__(cls, name, bases, dct)
 
-        def __instancecheck__(cls, instance):
-            if cls.__name__ == "object":
-                return isinstance(instance, native_object)
-            return type.__instancecheck__(cls, instance)
+        if sys.version_info[1] <= 6:
+            def __instancecheck__(cls, instance):
+                if cls.__name__ == "object":
+                    return isinstance(instance, native_object)
+
+                subclass = getattr(instance, '__class__', None)
+                subtype = type(instance)
+                instance_type = getattr(abc, '_InstanceType', None)
+                if not instance_type:
+                    class test_object:
+                        pass
+                    instance_type = type(test_object)
+                if subtype is instance_type:
+                    subtype = subclass
+                if subtype is subclass or subclass is None:
+                    return cls.__subclasscheck__(subtype)
+                return (cls.__subclasscheck__(subclass) or cls.__subclasscheck__(subtype))
+        else:
+            def __instancecheck__(cls, instance):
+                if cls.__name__ == "object":
+                    return isinstance(instance, native_object)
+                return type.__instancecheck__(cls, instance)
 
     class object(with_metaclass(FixStr, object)):
         pass
