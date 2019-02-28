@@ -1,8 +1,14 @@
-"""__init__.py.
+"""isort/natural.py.
 
-Defines the isort module to include the SortImports utility class as well as any defined settings.
+Enables sorting strings that contain numbers naturally
+
+usage:
+    natural.nsorted(list)
 
 Copyright (C) 2013  Timothy Edmund Crosley
+
+Implementation originally from @HappyLeapSecond stack overflow user in response to:
+   https://stackoverflow.com/questions/5967500/how-to-correctly-sort-a-string-with-a-number-inside
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 documentation files (the "Software"), to deal in the Software without restriction, including without limitation
@@ -19,10 +25,23 @@ CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFT
 OTHER DEALINGS IN THE SOFTWARE.
 
 """
+import re
 
-from __future__ import absolute_import, division, print_function, unicode_literals
 
-from . import settings  # noqa: F401
-from .isort import SortImports  # noqa: F401
+def _atoi(text):
+    return int(text) if text.isdigit() else text
 
-__version__ = "4.3.9"
+
+def _natural_keys(text):
+    return [_atoi(c) for c in re.split(r'(\d+)', text)]
+
+
+def nsorted(to_sort, key=None):
+    """Returns a naturally sorted list"""
+    if key is None:
+        key_callback = _natural_keys
+    else:
+        def key_callback(item):
+            return _natural_keys(key(item))
+
+    return sorted(to_sort, key=key_callback)
