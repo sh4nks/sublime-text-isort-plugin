@@ -1,3 +1,0 @@
-[submodule "isort"]
-	path = isort
-	url = https://github.com/timothycrosley/isort.git
