@@ -1,5 +1,5 @@
-Sublime text isort plugin
-====
+Sublime Text - isort Plugin
+===========================
 
 Small plugin that adds a command to sublime which replaces the contents with
 the output of the isort library. This plugin is just a wrapper around the
@@ -12,7 +12,7 @@ GitHub page [here][isort].
 
 Available via [package control][package-control].  Just bring up the package
 control menu in sublime (default `ctrl-shift-p`), and enter
-`Package Control: Install Package`, search for `isort`.
+`Package Control: Install Package`, search for `ImportSort`.
 
 ### Manual
 

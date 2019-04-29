@@ -1,6 +1,10 @@
 [
     {
-        "caption": "ImportSort: Sort imports",
+        "caption": "ImportSort: Sort Imports",
         "command": "isort"
+    },
+    {
+        "caption": "ImportSort: Toggle isort on save for current view",
+        "command": "isort_on_save"
     }
 ]
