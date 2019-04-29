@@ -1,10 +1,9 @@
 import os
 import sys
 from contextlib import contextmanager
-from typing import Any, Container, Iterable, Iterator, List
 
 
-def exists_case_sensitive(path: str) -> bool:
+def exists_case_sensitive(path):
     """
     Returns if the given path exists and also matches the case on Windows.
 
@@ -20,7 +19,7 @@ def exists_case_sensitive(path: str) -> bool:
 
 
 @contextmanager
-def chdir(path: str) -> Iterator[None]:
+def chdir(path):
     """Context manager for changing dir and restoring previous workdir after exit.
     """
     curdir = os.getcwd()
@@ -31,10 +30,10 @@ def chdir(path: str) -> Iterator[None]:
         os.chdir(curdir)
 
 
-def union(a: Iterable[Any], b: Iterable[Any]) -> List[Any]:
+def union(a, b):
     """ Return a list of items that are in `a` or `b`
     """
-    u = []  # type: List[Any]
+    u = []
     for item in a:
         if item not in u:
             u.append(item)
@@ -44,7 +43,7 @@ def union(a: Iterable[Any], b: Iterable[Any]) -> List[Any]:
     return u
 
 
-def difference(a: Iterable[Any], b: Container[Any]) -> List[Any]:
+def difference(a, b):
     """ Return a list of items from `a` that are not in `b`.
     """
     d = []
@@ -52,12 +51,3 @@ def difference(a: Iterable[Any], b: Container[Any]) -> List[Any]:
         if item not in b:
             d.append(item)
     return d
-
-
-def infer_line_separator(file_contents: str) -> str:
-    if '\r\n' in file_contents:
-        return '\r\n'
-    elif '\r' in file_contents:
-        return '\r'
-    else:
-        return '\n'

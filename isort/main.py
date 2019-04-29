@@ -17,18 +17,19 @@ CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFT
 OTHER DEALINGS IN THE SOFTWARE.
 
 '''
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import argparse
 import functools
 import glob
 import os
 import re
 import sys
-from typing import Any, Dict, Iterable, Iterator, List, MutableMapping, Optional, Sequence
 
 import setuptools
 
 from isort import SortImports, __version__
-from isort.settings import DEFAULT_SECTIONS, WrapModes, default, file_should_be_skipped, from_path
+from isort.settings import DEFAULT_SECTIONS, WrapModes, default, from_path, should_skip
 
 INTRO = r"""
 /#######################################################################\
@@ -56,7 +57,7 @@ INTRO = r"""
 shebang_re = re.compile(br'^#!.*\bpython[23w]?\b')
 
 
-def is_python_file(path: str) -> bool:
+def is_python_file(path):
     _root, ext = os.path.splitext(path)
     if ext in ('.py', '.pyi'):
         return True
@@ -77,12 +78,12 @@ def is_python_file(path: str) -> bool:
 
 
 class SortAttempt(object):
-    def __init__(self, incorrectly_sorted: bool, skipped: bool) -> None:
+    def __init__(self, incorrectly_sorted, skipped):
         self.incorrectly_sorted = incorrectly_sorted
         self.skipped = skipped
 
 
-def sort_imports(file_name: str, **arguments: Any) -> Optional[SortAttempt]:
+def sort_imports(file_name, **arguments):
     try:
         result = SortImports(file_name, **arguments)
         return SortAttempt(result.incorrectly_sorted, result.skipped)
@@ -91,7 +92,7 @@ def sort_imports(file_name: str, **arguments: Any) -> Optional[SortAttempt]:
         return None
 
 
-def iter_source_code(paths: Iterable[str], config: MutableMapping[str, Any], skipped: List[str]) -> Iterator[str]:
+def iter_source_code(paths, config, skipped):
     """Iterate over all Python source files defined in paths."""
     if 'not_skip' in config:
         config['skip'] = list(set(config['skip']).difference(config['not_skip']))
@@ -100,14 +101,14 @@ def iter_source_code(paths: Iterable[str], config: MutableMapping[str, Any], ski
         if os.path.isdir(path):
             for dirpath, dirnames, filenames in os.walk(path, topdown=True, followlinks=True):
                 for dirname in list(dirnames):
-                    if file_should_be_skipped(dirname, config, dirpath):
+                    if should_skip(dirname, config, dirpath):
                         skipped.append(dirname)
                         dirnames.remove(dirname)
                 for filename in filenames:
                     filepath = os.path.join(dirpath, filename)
                     if is_python_file(filepath):
                         relative_file = os.path.relpath(filepath, path)
-                        if file_should_be_skipped(relative_file, config, path):
+                        if should_skip(relative_file, config, path):
                             skipped.append(filename)
                         else:
                             yield filepath
@@ -121,21 +122,21 @@ class ISortCommand(setuptools.Command):
     """
 
     description = "Run isort on modules registered in setuptools"
-    user_options = []  # type: List[Any]
+    user_options = []
 
-    def initialize_options(self) -> None:
+    def initialize_options(self):
         default_settings = default.copy()
         for key, value in default_settings.items():
             setattr(self, key, value)
 
-    def finalize_options(self) -> None:
+    def finalize_options(self):
         "Get options from config files."
-        self.arguments = {}  # type: Dict[str, Any]
+        self.arguments = {}
         computed_settings = from_path(os.getcwd())
         for key, value in computed_settings.items():
             self.arguments[key] = value
 
-    def distribution_files(self) -> Iterator[str]:
+    def distribution_files(self):
         """Find distribution packages."""
         # This is verbatim from flake8
         if self.distribution.packages:
@@ -154,7 +155,7 @@ class ISortCommand(setuptools.Command):
         # Don't miss the setup.py file itself
         yield "setup.py"
 
-    def run(self) -> None:
+    def run(self):
         arguments = self.arguments
         wrong_sorted_files = False
         arguments['check'] = True
@@ -170,7 +171,7 @@ class ISortCommand(setuptools.Command):
             sys.exit(1)
 
 
-def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description='Sort Python import definitions alphabetically '
                                                  'within logical sections. Run with no arguments to run '
                                                  'interactively. Run with `-` as the first argument to read from '
@@ -232,7 +233,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
                         help="Forces line endings to the specified value. If not set, values will be guessed per-file.")
     parser.add_argument('-ls', '--length-sort', help='Sort imports by their string length.',
                         dest='length_sort', action='store_true')
-    parser.add_argument('-m', '--multi-line', dest='multi_line_output', type=WrapModes.from_string,
+    parser.add_argument('-m', '--multi-line', dest='multi_line_output', type=int, choices=range(len(WrapModes)),
                         help='Multi line output (0-grid, 1-vertical, 2-hanging, 3-vert-hanging, 4-vert-grid, '
                         '5-vert-grid-grouped, 6-vert-grid-grouped-no-comma).')
     inline_args_group.add_argument('-nis', '--no-inline-sort', dest='no_inline_sort', action='store_true',
@@ -305,7 +306,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> Dict[str, Any]:
     return arguments
 
 
-def main(argv: Optional[Sequence[str]] = None) -> None:
+def main(argv=None):
     arguments = parse_args(argv)
     if arguments.get('show_version'):
         print(INTRO)
@@ -331,7 +332,13 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     file_names = arguments.pop('files', [])
     if file_names == ['-']:
-        SortImports(file_contents=sys.stdin.read(), write_to_stdout=True, **arguments)
+        try:
+            # python 3
+            file_ = sys.stdin.buffer
+        except AttributeError:
+            # python 2
+            file_ = sys.stdin
+        SortImports(file_=file_, write_to_stdout=True, **arguments)
     else:
         if not file_names:
             file_names = ['.']
@@ -342,7 +349,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         config = from_path(arguments.get('settings_path', '') or os.path.abspath(file_names[0]) or os.getcwd()).copy()
         config.update(arguments)
         wrong_sorted_files = False
-        skipped = []  # type: List[str]
+        skipped = []
         if arguments.get('recursive', False):
             file_names = iter_source_code(file_names, config, skipped)
         num_skipped = 0
@@ -355,8 +362,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             executor = multiprocessing.Pool(jobs)
             attempt_iterator = executor.imap(functools.partial(sort_imports, **arguments), file_names)
         else:
-            # https://github.com/python/typeshed/pull/2814
-            attempt_iterator = (sort_imports(file_name, **arguments) for file_name in file_names)  # type: ignore
+            attempt_iterator = (sort_imports(file_name, **arguments) for file_name in file_names)
 
         for sort_attempt in attempt_iterator:
             if not sort_attempt:

@@ -22,23 +22,30 @@ CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFT
 OTHER DEALINGS IN THE SOFTWARE.
 
 """
-import configparser
-import enum
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import fnmatch
+import io
 import os
 import posixpath
 import re
+import sys
 import warnings
+from collections import namedtuple
 from distutils.util import strtobool
-from functools import lru_cache
-from typing import Any, Callable, Dict, Iterable, List, Mapping, MutableMapping
 
+from .pie_slice import lru_cache
 from .utils import difference, union
+
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
 
 try:
     import toml
 except ImportError:
-    toml = None  # type: ignore
+    toml = False
 
 try:
     import appdirs
@@ -55,21 +62,9 @@ safety_exclude_re = re.compile(
     r"|lib/python[0-9].[0-9]+)/"
 )
 
-
-class WrapModes(enum.Enum):
-    GRID = 0  # 0
-    VERTICAL = 1
-    HANGING_INDENT = 2
-    VERTICAL_HANGING_INDENT = 3
-    VERTICAL_GRID = 4
-    VERTICAL_GRID_GROUPED = 5
-    VERTICAL_GRID_GROUPED_NO_COMMA = 6
-    NOQA = 7
-
-    @staticmethod
-    def from_string(value: str) -> 'WrapModes':
-        return getattr(WrapModes, str(value), None) or WrapModes(int(value))
-
+WrapModes = ('GRID', 'VERTICAL', 'HANGING_INDENT', 'VERTICAL_HANGING_INDENT', 'VERTICAL_GRID', 'VERTICAL_GRID_GROUPED',
+             'VERTICAL_GRID_GROUPED_NO_COMMA', 'NOQA')
+WrapModes = namedtuple('WrapModes', WrapModes)(*range(len(WrapModes)))
 
 # Note that none of these lists must be complete as they are simply fallbacks for when included auto-detection fails.
 default = {'force_to_top': [],
@@ -172,7 +167,7 @@ default = {'force_to_top': [],
 
 
 @lru_cache()
-def from_path(path: str) -> Dict[str, Any]:
+def from_path(path):
     computed_settings = default.copy()
     isort_defaults = ['~/.isort.cfg']
     if appdirs:
@@ -186,45 +181,7 @@ def from_path(path: str) -> Dict[str, Any]:
     return computed_settings
 
 
-def prepare_config(settings_path: str, **setting_overrides: Any) -> Dict[str, Any]:
-    config = from_path(settings_path).copy()
-    for key, value in setting_overrides.items():
-        access_key = key.replace('not_', '').lower()
-        # The sections config needs to retain order and can't be converted to a set.
-        if access_key != 'sections' and type(config.get(access_key)) in (list, tuple):
-            if key.startswith('not_'):
-                config[access_key] = list(set(config[access_key]).difference(value))
-            else:
-                config[access_key] = list(set(config[access_key]).union(value))
-        else:
-            config[key] = value
-
-    if config['force_alphabetical_sort']:
-        config.update({'force_alphabetical_sort_within_sections': True,
-                       'no_sections': True,
-                       'lines_between_types': 1,
-                       'from_first': True})
-
-    indent = str(config['indent'])
-    if indent.isdigit():
-        indent = " " * int(indent)
-    else:
-        indent = indent.strip("'").strip('"')
-        if indent.lower() == "tab":
-            indent = "\t"
-    config['indent'] = indent
-
-    config['comment_prefix'] = config['comment_prefix'].strip("'").strip('"')
-    return config
-
-
-def _update_settings_with_config(
-    path: str,
-    name: str,
-    default: Iterable[str],
-    sections: Iterable[str],
-    computed_settings: MutableMapping[str, Any]
-) -> None:
+def _update_settings_with_config(path, name, default, sections, computed_settings):
     editor_config_file = None
     for potential_settings_path in default:
         expanded = os.path.expanduser(potential_settings_path)
@@ -235,7 +192,7 @@ def _update_settings_with_config(
     tries = 0
     current_directory = path
     while current_directory and tries < MAX_CONFIG_SEARCH_DEPTH:
-        potential_path = os.path.join(current_directory, name)
+        potential_path = os.path.join(current_directory, str(name))
         if os.path.exists(potential_path):
             editor_config_file = potential_path
             break
@@ -250,18 +207,7 @@ def _update_settings_with_config(
         _update_with_config_file(editor_config_file, sections, computed_settings)
 
 
-def _get_str_to_type_converter(setting_name: str) -> Callable[[str], Any]:
-    type_converter = type(default.get(setting_name, ''))  # type: Callable[[str], Any]
-    if type_converter == WrapModes:
-        type_converter = WrapModes.from_string
-    return type_converter
-
-
-def _update_with_config_file(
-    file_path: str,
-    sections: Iterable[str],
-    computed_settings: MutableMapping[str, Any]
-) -> None:
+def _update_with_config_file(file_path, sections, computed_settings):
     cwd = os.path.dirname(file_path)
     settings = _get_config_data(file_path, sections).copy()
     if not settings:
@@ -284,7 +230,7 @@ def _update_with_config_file(
 
     for key, value in settings.items():
         access_key = key.replace('not_', '').lower()
-        existing_value_type = _get_str_to_type_converter(access_key)
+        existing_value_type = type(default.get(access_key, ''))
         if existing_value_type in (list, tuple):
             # sections has fixed order values; no adding or substraction from any set
             if access_key == 'sections':
@@ -312,21 +258,14 @@ def _update_with_config_file(
                 result = default.get(access_key) if value.lower().strip() == 'false' else 2
             computed_settings[access_key] = result
         else:
-            computed_settings[access_key] = getattr(existing_value_type, str(value), None) or existing_value_type(value)
+            computed_settings[access_key] = existing_value_type(value)
 
 
-def _as_list(value: str) -> List[str]:
-    if isinstance(value, list):
-        return [item.strip() for item in value]
-    filtered = [
-        item.strip()
-        for item in value.replace('\n', ',').split(',')
-        if item.strip()
-    ]
-    return filtered
+def _as_list(value):
+    return filter(bool, [item.strip() for item in value.replace('\n', ',').split(',')])
 
 
-def _abspaths(cwd: str, values: Iterable[str]) -> List[str]:
+def _abspaths(cwd, values):
     paths = [
         os.path.join(cwd, value)
         if not value.startswith(os.path.sep) and value.endswith(os.path.sep)
@@ -337,10 +276,10 @@ def _abspaths(cwd: str, values: Iterable[str]) -> List[str]:
 
 
 @lru_cache()
-def _get_config_data(file_path: str, sections: Iterable[str]) -> Dict[str, Any]:
-    settings = {}  # type: Dict[str, Any]
+def _get_config_data(file_path, sections):
+    settings = {}
 
-    with open(file_path) as config_file:
+    with io.open(file_path) as config_file:
         if file_path.endswith('.toml'):
             if toml:
                 config = toml.load(config_file)
@@ -365,8 +304,13 @@ def _get_config_data(file_path: str, sections: Iterable[str]) -> Dict[str, Any]:
                         break
                     last_position = config_file.tell()
 
-            config = configparser.ConfigParser(strict=False)
-            config.read_file(config_file)
+            if sys.version_info >= (3, 2):
+                config = configparser.ConfigParser(strict=False)
+                config.read_file(config_file)
+            else:
+                config = configparser.SafeConfigParser()
+                config.readfp(config_file)
+
             for section in sections:
                 if config.has_section(section):
                     settings.update(config.items(section))
@@ -374,11 +318,7 @@ def _get_config_data(file_path: str, sections: Iterable[str]) -> Dict[str, Any]:
     return settings
 
 
-def file_should_be_skipped(
-    filename: str,
-    config: Mapping[str, Any],
-    path: str = ''
-) -> bool:
+def should_skip(filename, config, path=''):
     """Returns True if the file and/or folder should be skipped based on the passed in settings."""
     os_path = os.path.join(path, filename)
 

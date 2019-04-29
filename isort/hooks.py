@@ -23,12 +23,11 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 """
 import subprocess
-from typing import List
 
 from isort import SortImports
 
 
-def get_output(command: str) -> bytes:
+def get_output(command):
     """
     Run a command and return raw output
 
@@ -38,7 +37,7 @@ def get_output(command: str) -> bytes:
     return subprocess.check_output(command.split())
 
 
-def get_lines(command: str) -> List[str]:
+def get_lines(command):
     """
     Run a command and return lines of output
 
@@ -46,7 +45,7 @@ def get_lines(command: str) -> List[str]:
     :returns: list of whitespace-stripped lines output by command
     """
     stdout = get_output(command)
-    return [line.strip().decode() for line in stdout.splitlines()]
+    return [line.strip().decode('utf-8') for line in stdout.splitlines()]
 
 
 def git_hook(strict=False, modify=False):
