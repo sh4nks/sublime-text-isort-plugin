@@ -1,3 +1,6 @@
 {
-    "isort_on_save": false
+    "isort_on_save": false,
+    // extra isort settings
+    "isort_settings": {
+    }
 }

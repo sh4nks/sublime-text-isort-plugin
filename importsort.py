@@ -14,9 +14,7 @@ ISORT_ON_SAVE_VIEW_SETTING = "importsort.isort_on_save"
 SETTINGS_FILE_NAME = "importsort.sublime-settings"
 SETTINGS_NS_PREFIX = "{}.".format(PACKAGE_NAME)
 KEY_ERROR_MARKER = "__KEY_NOT_PRESENT_MARKER__"
-CONFIG_OPTIONS = [
-    "isort_on_save"
-]
+CONFIG_OPTIONS = ["isort_on_save", "isort_settings"]
 
 
 def is_python(view):
@@ -74,13 +72,13 @@ class IsortCommand(sublime_plugin.TextCommand):
         current_positions = self.get_positions()
 
         this_contents = self.get_buffer_contents()
-        settings = {"settings_path": os.path.dirname(self.view.file_name())}
-        settings.update(get_settings(self.view))
+        settings = get_settings(self.view).get("isort_settings")
+        settings.update(
+            {"settings_path": os.path.dirname(self.view.file_name())}
+        )
 
-        sorted_imports = SortImports(
-            file_contents=this_contents, **settings
-        ).output
-        self.view.replace(edit, self.get_region(), sorted_imports)
+        sorted_imports = SortImports(file_contents=this_contents, **settings)
+        self.view.replace(edit, self.get_region(), sorted_imports.output)
 
         # Our sel has moved now..
         remove_sel = self.view.sel()[0]
